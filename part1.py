@@ -21,12 +21,33 @@ import json
 class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        # TODO - define the layers of the network you will use
-        ...
+
+        self.conv1 = nn.Sequential(         
+            nn.Conv2d(
+                in_channels=3,  # since the images are RGB, the number of input channels is 3            
+                out_channels=3,            
+                kernel_size=5,              
+                stride=1,                   
+                padding=2,                  
+            ),                              
+            nn.ReLU(),                      
+            nn.MaxPool2d(kernel_size=2),    
+        )
+        self.conv2 = nn.Sequential(         
+            nn.Conv2d(3, 6, 5, 1, 2),     
+            nn.ReLU(),                      
+            nn.MaxPool2d(2),                
+        )
+        # fully connected layer, output 100 classes
+        self.out = nn.Linear(6 * 8 * 8, 100)
+
     
     def forward(self, x):
-        # TODO - define the forward pass of the network you will use
-        ...
+        x = self.conv1(x)
+        x = self.conv2(x)
+        # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
+        x = x.view(x.size(0), -1)       
+        x = self.out(x)
 
         return x
 
@@ -122,8 +143,8 @@ def main():
         "batch_size": 8, # run batch size finder to find optimal batch size
         "learning_rate": 0.1,
         "epochs": 5,  # Train for longer in a real scenario
-        "num_workers": 4, # Adjust based on your system
-        "device": "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu",
+        "num_workers": 1, # Adjust based on your system
+        "device": "cuda",
         "data_dir": "./data",  # Make sure this directory exists
         "ood_dir": "./data/ood-test",
         "wandb_project": "sp25-ds542-challenge",
