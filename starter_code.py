@@ -51,10 +51,14 @@ def train(epoch, model, trainloader, optimizer, criterion, CONFIG):
         inputs, labels = inputs.to(device), labels.to(device)
 
         ### TODO - Your code here
-        ...
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-        running_loss += ...   ### TODO
-        _, predicted = ...    ### TODO
+        running_loss += loss   ### TODO
+        _, predicted = torch.max(outputs.data, 1)     ### TODO
 
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
@@ -87,11 +91,11 @@ def validate(model, valloader, criterion, device):
             # move inputs and labels to the target device
             inputs, labels = inputs.to(device), labels.to(device)
 
-            outputs = ... ### TODO -- inference
-            loss = ...    ### TODO -- loss calculation
+            outputs = model(inputs) ### TODO -- inference
+            loss = criterion(outputs, labels)    ### TODO -- loss calculation
 
-            running_loss += ...  ### SOLUTION -- add loss from this sample
-            _, predicted = ...   ### SOLUTION -- predict the class
+            running_loss += loss  ### SOLUTION -- add loss from this sample
+            _, predicted = torch.max(outputs.data, 1)   ### SOLUTION -- predict the class
 
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
