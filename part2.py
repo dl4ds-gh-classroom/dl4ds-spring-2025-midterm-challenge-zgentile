@@ -21,13 +21,136 @@ import json
 class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        # TODO - define the layers of the network you will use
-        ...
-    
-    def forward(self, x):
-        # TODO - define the forward pass of the network you will use
-        ...
 
+        # First convolutional block
+        self.conv1 = nn.Sequential(         
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),                            
+            nn.ReLU(),                      
+            nn.MaxPool2d(kernel_size=2),    # Output: 32 x 16 x 16
+        )
+        
+        # Second convolutional block
+        self.conv2 = nn.Sequential(         
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),    
+            nn.ReLU(),                      
+            nn.MaxPool2d(2),                # Output: 64 x 8 x 8
+        )
+        
+        # Classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(64 * 8 * 8, 256),
+            nn.ReLU(),
+            nn.Linear(256, 100)  # Output for 100 classes
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.view(x.size(0), -1)  # Flatten      
+        x = self.classifier(x)
+        return x
+
+class ImprovedCNN(nn.Module):
+    def __init__(self):
+        super(ImprovedCNN, self).__init__()
+        # Feature extractor: Three convolutional blocks
+        self.features = nn.Sequential(
+            # Block 1: Input 32x32 -> 16x16
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [B, 32, 16, 16]
+
+            # Block 2: 16x16 -> 8x8
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [B, 64, 8, 8]
+
+            # Block 3: 8x8 -> 4x4
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2)  # [B, 128, 4, 4]
+        )
+        
+        # Classifier: Fully connected layers with dropout
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(128 * 4 * 4, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(256, 100)  # 100 classes for CIFAR-100
+        )
+
+    def forward(self, x):
+        # Pass through feature extractor
+        x = self.features(x)
+        # Flatten the tensor for the classifier
+        x = x.view(x.size(0), -1)
+        # Get the class scores
+        x = self.classifier(x)
+        return x
+
+class AdvancedCNN(nn.Module):
+    def __init__(self):
+        super(AdvancedCNN, self).__init__()
+
+        # First convolutional block
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # Output: 64 x 16 x 16
+            nn.Dropout(0.2)  # Dropout for regularization
+        )
+
+        # Second convolutional block
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # Output: 128 x 8 x 8
+            nn.Dropout(0.3)
+        )
+
+        # Third convolutional block
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),  # Output: 256 x 4 x 4
+            nn.Dropout(0.4)
+        )
+
+        # Classifier (fully connected layers)
+        self.classifier = nn.Sequential(
+            nn.Linear(256 * 4 * 4, 512),  # Flattened input to dense layer
+            nn.ReLU(),
+            nn.Dropout(0.5),  # Dropout for dense layers
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 100)  # Output layer for CIFAR-100 (100 classes)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = x.view(x.size(0), -1)  # Flatten the tensor for the classifier
+        x = self.classifier(x)
         return x
 
 ################################################################################
@@ -57,8 +180,9 @@ def train(epoch, model, trainloader, optimizer, criterion, CONFIG):
         loss.backward()
         optimizer.step()
 
-        running_loss += loss   ### TODO
+        running_loss += loss.item()   ### TODO
         _, predicted = torch.max(outputs.data, 1)     ### TODO
+        print(predicted)
 
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
@@ -67,8 +191,64 @@ def train(epoch, model, trainloader, optimizer, criterion, CONFIG):
 
     train_loss = running_loss / len(trainloader)
     train_acc = 100. * correct / total
+    print(train_acc)
     return train_loss, train_acc
+################################################################################
+# Early stopping to stop training early if loss plateaus
+################################################################################
 
+class EarlyStopping:
+    """
+    Early stops the training if validation loss doesn't improve after a given patience.
+    
+    Attributes:
+        patience (int): How many epochs to wait after last time validation loss improved.
+        verbose (bool): If True, prints a message for each validation loss improvement.
+        delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+        path (str): Path for the checkpoint to be saved to.
+        counter (int): Number of epochs since the last improvement.
+        best_score (float): Best score achieved so far.
+        early_stop (bool): Whether to stop the training.
+        val_loss_min (float): Minimum validation loss encountered so far.
+    """
+    
+    def __init__(self, patience=5, verbose=True, delta=0.0, path='checkpoint.pt'):
+        self.patience = patience
+        self.verbose = verbose
+        self.delta = delta
+        self.path = path
+        
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+
+    def __call__(self, val_loss, model):
+        # Invert the loss because lower loss is better.
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.verbose:
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                if self.verbose:
+                    print("Early stopping triggered")
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model):
+        """Saves model when validation loss decreases."""
+        if self.verbose:
+            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
 
 ################################################################################
 # Define a validation function
@@ -94,7 +274,7 @@ def validate(model, valloader, criterion, device):
             outputs = model(inputs) ### TODO -- inference
             loss = criterion(outputs, labels)    ### TODO -- loss calculation
 
-            running_loss += loss  ### SOLUTION -- add loss from this sample
+            running_loss += loss.item()  ### SOLUTION -- add loss from this sample
             _, predicted = torch.max(outputs.data, 1)   ### SOLUTION -- predict the class
 
             total += labels.size(0)
@@ -119,16 +299,16 @@ def main():
 
     CONFIG = {
         "model": "MyModel",   # Change name when using a different model
-        "batch_size": 8, # run batch size finder to find optimal batch size
-        "learning_rate": 0.1,
-        "epochs": 5,  # Train for longer in a real scenario
-        "num_workers": 4, # Adjust based on your system
-        "device": "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu",
+        "batch_size": 128, # run batch size finder to find optimal batch size
+        "learning_rate": .001,
+        "epochs": 20,  # Train for longer in a real scenario
+        "num_workers": 1, # Adjust based on your system
+        "device": "cuda",
         "data_dir": "./data",  # Make sure this directory exists
         "ood_dir": "./data/ood-test",
         "wandb_project": "sp25-ds542-challenge",
         "seed": 42,
-        "weight_decay": .01
+        "weight_decay": 0
     }
 
     import pprint
@@ -140,9 +320,15 @@ def main():
     ############################################################################
 
     transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), # Example normalization
+        transforms.RandomHorizontalFlip(p=0.5),  # Randomly flip images horizontally with 50% probability
+        #transforms.RandomVerticalFlip(p=0.3),    # Randomly flip images vertically with 50% probability
+        transforms.RandomRotation(degrees=15),   # Randomly rotate images within a range of ±15 degrees
+        #transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Adjust color properties
+       # transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),   # Apply affine transformations
+        transforms.ToTensor(),                   # Convert PIL image to tensor
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize the image
     ])
+
 
     ###############
     # TODO Add validation and test transforms - NO augmentation for validation/test
@@ -178,7 +364,7 @@ def main():
     ############################################################################
     #   Instantiate model and move to target device
     ############################################################################
-    model = SimpleCNN()   # instantiate your model ### TODO
+    model = AdvancedCNN()   # instantiate your model ### TODO
     model = model.to(CONFIG["device"])   # move it to target device
 
     print("\nModel summary:")
@@ -200,7 +386,7 @@ def main():
     # Loss Function, Optimizer and optional learning rate scheduler
     ############################################################################
     criterion = nn.CrossEntropyLoss()   ### TODO -- define loss criterion
-    optimizer = optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'], weight_decay=0.01)   ### TODO -- define optimizer
+    optimizer = optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'], weight_decay=CONFIG['weight_decay'])   ### TODO -- define optimizer
     scheduler =  torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=CONFIG['epochs'])  # Add a scheduler   ### TODO -- you can optionally add a LR scheduler
 
 
@@ -212,6 +398,8 @@ def main():
     # --- Training Loop (Example - Students need to complete) ---
     ############################################################################
     best_val_acc = 0.0
+
+    early_stopping = EarlyStopping(patience=5, verbose=True, path='best_model.pt') # Initialize early stopping
 
     for epoch in range(CONFIG["epochs"]):
         train_loss, train_acc = train(epoch, model, trainloader, optimizer, criterion, CONFIG)
@@ -233,6 +421,11 @@ def main():
             best_val_acc = val_acc
             torch.save(model.state_dict(), "best_model.pth")
             wandb.save("best_model.pth") # Save to wandb as well
+
+        early_stopping(val_loss, model) # Determine if early stopping should be done
+        if early_stopping.early_stop:
+            print("Stopping early at epoch", epoch+1)
+            break 
 
     wandb.finish()
 
