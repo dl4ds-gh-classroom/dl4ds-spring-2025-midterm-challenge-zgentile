@@ -18,102 +18,18 @@ import json
 # for Part 3 you have the option of using a predefined, pretrained network to
 # finetune.
 ################################################################################
-class SimpleCNN(nn.Module):
+
+class ComplexCNN(nn.Module):
     def __init__(self):
-        super(SimpleCNN, self).__init__()
-
-        # First convolutional block
-        self.conv1 = nn.Sequential(         
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),                            
-            nn.ReLU(),                      
-            nn.MaxPool2d(kernel_size=2),    # Output: 32 x 16 x 16
-        )
-        
-        # Second convolutional block
-        self.conv2 = nn.Sequential(         
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),    
-            nn.ReLU(),                      
-            nn.MaxPool2d(2),                # Output: 64 x 8 x 8
-        )
-        
-        # Classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(64 * 8 * 8, 256),
-            nn.ReLU(),
-            nn.Linear(256, 100)  # Output for 100 classes
-        )
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = x.view(x.size(0), -1)  # Flatten      
-        x = self.classifier(x)
-        return x
-
-class ImprovedCNN(nn.Module):
-    def __init__(self):
-        super(ImprovedCNN, self).__init__()
-        # Feature extractor: Three convolutional blocks
-        self.features = nn.Sequential(
-            # Block 1: Input 32x32 -> 16x16
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # [B, 32, 16, 16]
-
-            # Block 2: 16x16 -> 8x8
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # [B, 64, 8, 8]
-
-            # Block 3: 8x8 -> 4x4
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2)  # [B, 128, 4, 4]
-        )
-        
-        # Classifier: Fully connected layers with dropout
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(128 * 4 * 4, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(256, 100)  # 100 classes for CIFAR-100
-        )
-
-    def forward(self, x):
-        # Pass through feature extractor
-        x = self.features(x)
-        # Flatten the tensor for the classifier
-        x = x.view(x.size(0), -1)
-        # Get the class scores
-        x = self.classifier(x)
-        return x
-
-class AdvancedCNN(nn.Module):
-    def __init__(self):
-        super(AdvancedCNN, self).__init__()
+        super(ComplexCNN, self).__init__()
 
         # First convolutional block
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(64),  # Batch normalization for smoother optimization
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),  # Output: 64 x 16 x 16
-            nn.Dropout(0.2)  # Dropout for regularization
+            nn.Dropout(0.25)  # Dropout for regularization
         )
 
         # Second convolutional block
@@ -122,7 +38,7 @@ class AdvancedCNN(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),  # Output: 128 x 8 x 8
-            nn.Dropout(0.3)
+            nn.Dropout(0.25)
         )
 
         # Third convolutional block
@@ -131,27 +47,38 @@ class AdvancedCNN(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),  # Output: 256 x 4 x 4
-            nn.Dropout(0.4)
+            nn.Dropout(0.25)
         )
 
-        # Classifier (fully connected layers)
-        self.classifier = nn.Sequential(
-            nn.Linear(256 * 4 * 4, 512),  # Flattened input to dense layer
+        # Fourth convolutional block (optional deeper layer for better feature extraction)
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Dropout for dense layers
-            nn.Linear(512, 256),
+            nn.MaxPool2d(kernel_size=2),  # Output: 512 x 2 x 2
+            nn.Dropout(0.25)
+        )
+
+        # Classifier (fully connected layers with regularization)
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 2 * 2, 1024),  # Flattened input to dense layer
+            nn.ReLU(),
+            nn.Dropout(0.25),  # Dropout for dense layers
+            nn.Linear(1024, 512),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(256, 100)  # Output layer for CIFAR-100 (100 classes)
+            nn.Linear(512, 100)  # Output layer for CIFAR-100 (100 classes)
         )
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
+        x = self.conv4(x)  # Optional deeper layer
         x = x.view(x.size(0), -1)  # Flatten the tensor for the classifier
         x = self.classifier(x)
         return x
+
 
 ################################################################################
 # Define a one epoch training function
@@ -182,7 +109,6 @@ def train(epoch, model, trainloader, optimizer, criterion, CONFIG):
 
         running_loss += loss.item()   ### TODO
         _, predicted = torch.max(outputs.data, 1)     ### TODO
-        print(predicted)
 
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
@@ -298,17 +224,18 @@ def main():
 
 
     CONFIG = {
-        "model": "MyModel",   # Change name when using a different model
+        "model": "ComplexCNN",   # Change name when using a different model
         "batch_size": 128, # run batch size finder to find optimal batch size
         "learning_rate": .001,
-        "epochs": 20,  # Train for longer in a real scenario
+        "epochs": 50,  # Train for longer in a real scenario
         "num_workers": 1, # Adjust based on your system
         "device": "cuda",
         "data_dir": "./data",  # Make sure this directory exists
         "ood_dir": "./data/ood-test",
         "wandb_project": "sp25-ds542-challenge",
         "seed": 42,
-        "weight_decay": 0
+        "weight_decay": 0.0001,
+        "label_smoothing": .1
     }
 
     import pprint
@@ -321,12 +248,13 @@ def main():
 
     transform_train = transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),  # Randomly flip images horizontally with 50% probability
-        #transforms.RandomVerticalFlip(p=0.3),    # Randomly flip images vertically with 50% probability
+       # transforms.RandomVerticalFlip(p=0.5),    # Randomly flip images vertically with 50% probability
         transforms.RandomRotation(degrees=15),   # Randomly rotate images within a range of ±15 degrees
-        #transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Adjust color properties
-       # transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),   # Apply affine transformations
+       # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Adjust color properties
+        #transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),   # Apply affine transformations
         transforms.ToTensor(),                   # Convert PIL image to tensor
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize the image
+        #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))  # Normalize the image
     ])
 
 
@@ -337,7 +265,8 @@ def main():
     # Validation and test transforms (NO augmentation)
     transform_test = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), # Example normalization
+        #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)) # Example normalization
     ])
 
     ############################################################################
@@ -364,7 +293,7 @@ def main():
     ############################################################################
     #   Instantiate model and move to target device
     ############################################################################
-    model = AdvancedCNN()   # instantiate your model ### TODO
+    model = ComplexCNN()   # instantiate your model ### TODO
     model = model.to(CONFIG["device"])   # move it to target device
 
     print("\nModel summary:")
@@ -385,9 +314,9 @@ def main():
     ############################################################################
     # Loss Function, Optimizer and optional learning rate scheduler
     ############################################################################
-    criterion = nn.CrossEntropyLoss()   ### TODO -- define loss criterion
+    criterion = nn.CrossEntropyLoss(label_smoothing=CONFIG['label_smoothing'])   # Experiment with label smoothing
     optimizer = optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'], weight_decay=CONFIG['weight_decay'])   ### TODO -- define optimizer
-    scheduler =  torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=CONFIG['epochs'])  # Add a scheduler   ### TODO -- you can optionally add a LR scheduler
+    #scheduler =  torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=CONFIG['epochs'])  # Add a scheduler   ### TODO -- you can optionally add a LR scheduler
 
 
     # Initialize wandb
@@ -404,7 +333,7 @@ def main():
     for epoch in range(CONFIG["epochs"]):
         train_loss, train_acc = train(epoch, model, trainloader, optimizer, criterion, CONFIG)
         val_loss, val_acc = validate(model, valloader, criterion, CONFIG["device"])
-        scheduler.step()
+        #scheduler.step()
 
         # log to WandB
         wandb.log({

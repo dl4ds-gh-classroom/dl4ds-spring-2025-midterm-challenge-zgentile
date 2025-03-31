@@ -52,56 +52,6 @@ class SimpleCNN(nn.Module):
         x = self.classifier(x)
         return x
 
-class ImprovedCNN(nn.Module):
-    def __init__(self):
-        super(ImprovedCNN, self).__init__()
-        # Feature extractor: Three convolutional blocks
-        self.features = nn.Sequential(
-            # Block 1: Input 32x32 -> 16x16
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),  # [B, 32, 32, 32]
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # [B, 32, 16, 16]
-
-            # Block 2: 16x16 -> 8x8
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 16, 16]
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # [B, 64, 8, 8]
-
-            # Block 3: 8x8 -> 4x4
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),  # [B, 128, 8, 8]
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2)  # [B, 128, 4, 4]
-        )
-        
-        # Classifier: Fully connected layers with dropout
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(128 * 4 * 4, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(256, 100)  # 100 classes for CIFAR-100
-        )
-
-    def forward(self, x):
-        # Pass through feature extractor
-        x = self.features(x)
-        # Flatten the tensor for the classifier
-        x = x.view(x.size(0), -1)
-        # Get the class scores
-        x = self.classifier(x)
-        return x
 ################################################################################
 # Define a one epoch training function
 ################################################################################
@@ -192,7 +142,7 @@ def main():
 
 
     CONFIG = {
-        "model": "MyModel",   # Change name when using a different model
+        "model": "SimpleCNN",   # Change name when using a different model
         "batch_size": 128, # run batch size finder to find optimal batch size
         "learning_rate": 1e-3,
         "epochs": 20,  # Train for longer in a real scenario
