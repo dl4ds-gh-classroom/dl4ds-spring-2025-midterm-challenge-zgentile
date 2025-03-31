@@ -21,7 +21,7 @@ My final model is a fine tuned Resnet34 architecture. First, our CIFAR-100 input
 
 ## Hyperparameter Tuning
 
-My models were subject to various hyperparameters. The first two models were tuned by the batch size, learning rate, weight decay, and label smoothing. The models were particulary sensitive to the learning rate and weight decay hyperparameters. I found that the best learning rate for these two models was around .001. Interestingly, a high learning rate, weight decay, or label smoothing hyperparameter lead to a strange situation where the model was always stuck as 1% accuracy and would guess the same class for everything. Lowering the learning rate and weight decay values alleviated this issue. I found that using a weight decay value that is around .0001 produced appropriate results without stunting learning. The final label smoothing value that I chose is .1. Values higher than that such as .2 lead to decreased performance. 
+My models were subject to various hyperparameters. The first two models were tuned by the batch size, learning rate, weight decay, and label smoothing. The models were particulary sensitive to the learning rate and weight decay hyperparameters. I found that the best learning rate for these two models was around .001. I chose to use a CosineAnnealing LR scheduler, after experiments showed it leads to more stable learning. Interestingly, a high learning rate, weight decay, or label smoothing hyperparameter lead to a strange situation where the model was always stuck as 1% accuracy and would guess the same class for everything. Lowering the learning rate and weight decay values alleviated this issue. I found that using a weight decay value that is around .0001 produced appropriate results without stunting learning. The final label smoothing value that I chose is .1. Values higher than that such as .2 lead to decreased performance. 
 
 ## Regularization Techniques
 <!-- 
@@ -61,3 +61,33 @@ Experiment tracking summary for final fine-tuning model:
 ![alt text](image-1.png)
 
 The top purple line represents my best model. It used full fine-tuning and achieved the best training, validation, and OOD accuracy. Interestingly, using a warm up phase (as seen in the lines that start low and then shoot up after 5-10 iterations) did not provide any improvements to performance, and took much longer to train. 
+
+Results for Resnet with no fine-tuning:
+
+![alt text](image-2.png)
+
+The model performed well on the training set, but there was severe overfitting. The validation accuracy was around 40% less than the training accuracy and the OOD accuracy was 10% less than the validation accuracy.
+
+
+Training with LR scheduler vs without LR scheduler: 
+
+![alt text](image-4.png)
+![alt text](image-3.png)
+
+Clearly, the training with the LR scheduler leads to more smooth training.
+
+Weird phenomenom with too high of a LR:
+
+![alt text](image-5.png)
+
+The validation accuracy would stay at around 1% and would guess the same class for everything. This happened in several different models.
+
+Final results:
+
+No transfer learning (~40 successful trials):
+
+![alt text](image-6.png)
+
+Transfer learning with fine-tuning (~7 experiments):
+
+![alt text](image-7.png)

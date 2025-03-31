@@ -19,7 +19,6 @@ import json
 # finetune.
 ################################################################################
 
-
 class ResNet18TransferNet(nn.Module):
     def __init__(self, num_classes=100):
         super(ResNet18TransferNet, self).__init__()
@@ -65,65 +64,52 @@ class ResNet18TransferNet(nn.Module):
                     for param in child.parameters():
                         param.requires_grad = False
 
-class VGG16TransferNet(nn.Module):
+class ResNet34TransferNet(nn.Module):
     def __init__(self, num_classes=100):
-        super(VGG16TransferNet, self).__init__()
+        super(ResNet34TransferNet, self).__init__()
         # Resize layer to upscale 32x32 images to 224x224
         self.resize = nn.Upsample(size=(224, 224), mode='bilinear', align_corners=False)
-        # Load pretrained VGG16
-        self.vgg = torchvision.models.vgg16(pretrained=True)
-        # Replace the final classifier layer to match our number of classes
-        # VGG16 has a classifier with 6 parts - we modify the last one (6th)
-        self.vgg.classifier[6] = nn.Linear(4096, num_classes)
+        # Load pretrained ResNet34
+        self.resnet = torchvision.models.resnet34(pretrained=True)
+        # Replace the final fully connected layer to match our number of classes
+        self.resnet.fc = nn.Linear(512, num_classes)
         
     def forward(self, x):
         # x: (batch, 3, 32, 32)
-        x = self.resize(x)  # Resize to (batch, 3, 224, 224)
-        x = self.vgg(x)     # Forward pass through VGG16
+        x = self.resize(x)   # Resize to (batch, 3, 224, 224)
+        x = self.resnet(x)   # Forward pass through ResNet34
         return x
     
     def freeze_base_network(self):
-        """Freeze all layers except the final classifier layer"""
-        # Freeze features (convolutional layers)
-        for param in self.vgg.features.parameters():
+        """Freeze all layers except the final FC layer"""
+        for param in self.resnet.parameters():
             param.requires_grad = False
             
-        # Freeze all classifier layers except the last one
-        for i in range(len(self.vgg.classifier) - 1):
-            for param in self.vgg.classifier[i].parameters():
-                param.requires_grad = False
-                
-        # Ensure the final classifier layer is trainable
-        for param in self.vgg.classifier[6].parameters():
+        # Unfreeze the FC layer
+        for param in self.resnet.fc.parameters():
             param.requires_grad = True
             
     def unfreeze_layers(self, from_layer=None):
         """Unfreeze layers from the specified layer onwards"""
         if from_layer is None:
             # Unfreeze all layers
-            for param in self.vgg.parameters():
+            for param in self.resnet.parameters():
                 param.requires_grad = True
         else:
-            # VGG16 feature extraction part has 5 blocks
-            blocks = {
-                'block5': 24,  # Starting index of block 5 in features
-                'block4': 17,  # Starting index of block 4 in features
-                'block3': 10,  # Starting index of block 3 in features
-                'block2': 5,   # Starting index of block 2 in features
-                'block1': 0    # Starting index of block 1 in features
-            }
-            
-            if from_layer in blocks:
-                # Keep initial layers frozen and unfreeze later layers
-                for i, param in enumerate(self.vgg.features.parameters()):
-                    if i >= blocks[from_layer]:
+            # Keep initial layers frozen and unfreeze later layers
+            layers_to_unfreeze = False
+            for name, child in self.resnet.named_children():
+                if name == from_layer:
+                    layers_to_unfreeze = True
+                    
+                if layers_to_unfreeze:
+                    for param in child.parameters():
                         param.requires_grad = True
-                    else:
+                else:
+                    for param in child.parameters():
                         param.requires_grad = False
-                
-                # Always unfreeze the classifier when we're unfreezing deeper layers
-                for param in self.vgg.classifier.parameters():
-                    param.requires_grad = True
+
+
 
 ################################################################################
 # Define a one epoch training function
@@ -202,17 +188,17 @@ class EarlyStopping:
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, model)
-        elif score < self.best_score + self.delta:
+        elif score < self.best_score + self.delta: # Count increases if the epoch does not produce significant improvement in validation loss
             self.counter += 1
             if self.verbose:
                 print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience:
+            if self.counter >= self.patience: # If the patience is exceeded, training stops
                 if self.verbose:
                     print("Early stopping triggered")
                 self.early_stop = True
         else:
             self.best_score = score
-            self.save_checkpoint(val_loss, model)
+            self.save_checkpoint(val_loss, model) # Model is saved in checkpoints to preserve the best model in the case of early stopping
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model):
@@ -268,6 +254,7 @@ def apply_fine_tuning_strategy(model, epoch, optimizer, CONFIG):
         
     ft_config = CONFIG["fine_tuning"]
     strategy = ft_config["strategy"]
+    architecture = CONFIG["architecture"]
     
     # Two-stage strategy: unfreeze deeper layers after specified epochs
     if strategy == "two_stage" and epoch == ft_config["unfreeze_after"]:
@@ -275,11 +262,12 @@ def apply_fine_tuning_strategy(model, epoch, optimizer, CONFIG):
         model.unfreeze_layers()
         
         # Create new optimizer with different learning rates
-        optimizer = optim.AdamW([
-            {'params': [p for n, p in model.resnet.named_parameters() 
-                       if 'fc' not in n], 'lr': ft_config["base_lr"]},
-            {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
-        ], weight_decay=CONFIG["weight_decay"])
+        if architecture in ["resnet18", "resnet34"]:
+            optimizer = optim.AdamW([
+                {'params': [p for n, p in model.resnet.named_parameters() 
+                           if 'fc' not in n], 'lr': ft_config["base_lr"]},
+                {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
+            ], weight_decay=CONFIG["weight_decay"])
         
         return optimizer
     
@@ -288,22 +276,25 @@ def apply_fine_tuning_strategy(model, epoch, optimizer, CONFIG):
         epochs = CONFIG["epochs"]
         
         if epoch == int(epochs * 0.2):
-            print('Unfreezing layer4...')
-            model.unfreeze_layers(from_layer='layer4')
-            optimizer = optim.AdamW([
-                {'params': model.resnet.layer4.parameters(), 'lr': ft_config["base_lr"]},
-                {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
-            ], weight_decay=CONFIG["weight_decay"])
+            if architecture in ["resnet18", "resnet34"]:
+                print('Unfreezing layer4...')
+                model.unfreeze_layers(from_layer='layer4')
+                optimizer = optim.AdamW([
+                    {'params': model.resnet.layer4.parameters(), 'lr': ft_config["base_lr"]},
+                    {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
+                ], weight_decay=CONFIG["weight_decay"])
             return optimizer
             
         elif epoch == int(epochs * 0.4):
-            print('Unfreezing layer3...')
-            model.unfreeze_layers(from_layer='layer3')
-            optimizer = optim.AdamW([
-                {'params': model.resnet.layer3.parameters(), 'lr': ft_config["base_lr"] * 0.5},
-                {'params': model.resnet.layer4.parameters(), 'lr': ft_config["base_lr"]},
-                {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
-            ], weight_decay=CONFIG["weight_decay"])
+            if architecture in ["resnet18", "resnet34"]:
+                print('Unfreezing layer3...')
+                model.unfreeze_layers(from_layer='layer3')
+                optimizer = optim.AdamW([
+                    {'params': model.resnet.layer3.parameters(), 'lr': ft_config["base_lr"] * 0.5},
+                    {'params': model.resnet.layer4.parameters(), 'lr': ft_config["base_lr"]},
+                    {'params': model.resnet.fc.parameters(), 'lr': ft_config["new_layers_lr"]}
+                ], weight_decay=CONFIG["weight_decay"])
+
             return optimizer
     
     # Return the original optimizer if no changes
@@ -320,7 +311,7 @@ def main():
 
 
     CONFIG = {
-        "model": "VGG16TransferNet",   # Change name when using a different model
+        "architecture": "resnet34",   # Options: "resnet18", "resnet34"
         "batch_size": 128, # run batch size finder to find optimal batch size
         "learning_rate": 0.01,
         "epochs": 50,  # Train for longer in a real scenario
@@ -353,7 +344,7 @@ def main():
 
     transform_train = transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),  # Randomly flip images horizontally with 50% probability
-       # transforms.RandomVerticalFlip(p=0.5),    # Randomly flip images vertically with 50% probability
+        # transforms.RandomVerticalFlip(p=0.5),    # Randomly flip images vertically with 50% probability
         transforms.RandomRotation(degrees=15),   # Randomly rotate images within a range of ±15 degrees
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Adjust color properties
         transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),   # Apply affine transformations
@@ -398,7 +389,13 @@ def main():
     ############################################################################
     #   Instantiate model and move to target device
     ############################################################################
-    model = VGG16TransferNet()   # instantiate your model ### TODO
+    if CONFIG["architecture"] == "resnet18":
+        model = ResNet18TransferNet(num_classes=100)
+    elif CONFIG["architecture"] == "resnet34":
+        model = ResNet34TransferNet(num_classes=100)
+    else:
+        raise ValueError(f"Unsupported architecture: {CONFIG['architecture']}")
+        
     model = model.to(CONFIG["device"])   # move it to target device
 
     print("\nModel summary:")
@@ -425,20 +422,22 @@ def main():
         if strategy == "two_stage" or strategy == "gradual":
             # Start with frozen base network
             model.freeze_base_network()
-            # Initial optimizer targets only unfrozen parts (FC layer)
-            optimizer = optim.AdamW([
-                {'params': model.resnet.fc.parameters(), 
-                 'lr': CONFIG["fine_tuning"]["new_layers_lr"]}
-            ], weight_decay=CONFIG["weight_decay"])
+            # Initial optimizer targets only unfrozen parts (FC layer or classifier)
+            if CONFIG["architecture"] in ["resnet18", "resnet34"]:
+                optimizer = optim.AdamW([
+                    {'params': model.resnet.fc.parameters(), 
+                     'lr': CONFIG["fine_tuning"]["new_layers_lr"]}
+                ], weight_decay=CONFIG["weight_decay"])
         else:  # "full" strategy
             # Fine-tune the whole network with different learning rates
-            optimizer = optim.AdamW([
-                {'params': [p for n, p in model.resnet.named_parameters() 
-                           if 'fc' not in n], 
-                 'lr': CONFIG["fine_tuning"]["base_lr"]},
-                {'params': model.resnet.fc.parameters(), 
-                 'lr': CONFIG["fine_tuning"]["new_layers_lr"]}
-            ], weight_decay=CONFIG["weight_decay"])
+            if CONFIG["architecture"] in ["resnet18", "resnet34"]:
+                optimizer = optim.AdamW([
+                    {'params': [p for n, p in model.resnet.named_parameters() 
+                               if 'fc' not in n], 
+                     'lr': CONFIG["fine_tuning"]["base_lr"]},
+                    {'params': model.resnet.fc.parameters(), 
+                     'lr': CONFIG["fine_tuning"]["new_layers_lr"]}
+                ], weight_decay=CONFIG["weight_decay"])
     else:
         # Standard optimizer initialization
         optimizer = optim.AdamW(model.parameters(), lr=CONFIG['learning_rate'], weight_decay=CONFIG['weight_decay'])
