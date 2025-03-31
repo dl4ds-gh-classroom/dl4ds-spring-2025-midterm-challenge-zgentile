@@ -91,3 +91,8 @@ No transfer learning (~40 successful trials):
 Transfer learning with fine-tuning (~7 experiments):
 
 ![alt text](image-7.png)
+
+Best submission performance for each part:
+![alt text](image-8.png)
+
+My fine-tuned transfer learning model achieved .56181 accuracy. My best non transfer learning model achieved .37749 accuracy. My best simple model achieved .27565 accuracy.
